@@ -9,16 +9,52 @@ type Profile = {
   email: string | null
   nome: string | null
   cpf: string | null
+  telefone: string | null
+  cidade: string | null
 }
 
 export default function Home() {
   const [email, setEmail] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const [sendingLogin, setSendingLogin] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [checkingSession, setCheckingSession] = useState(true)
+  const [nome, setNome] = useState('')
+  const [cpf, setCpf] = useState('')
+  const [telefone, setTelefone] = useState('')
+  const [cidade, setCidade] = useState('')
+
+  async function loadProfile(userId: string) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, email, nome, cpf, telefone, cidade')
+      .eq('id', userId)
+      .single()
+
+    if (error) {
+      setError(error.message)
+      return
+    }
+
+    if (!data) {
+      setProfile(null)
+      setNome('')
+      setCpf('')
+      setTelefone('')
+      setCidade('')
+      return
+    }
+
+    setProfile(data)
+    setNome(data.nome ?? '')
+    setCpf(data.cpf ?? '')
+    setTelefone(data.telefone ?? '')
+    setCidade(data.cidade ?? '')
+  }
 
   useEffect(() => {
     let mounted = true
@@ -30,7 +66,7 @@ export default function Home() {
 
       if (error) {
         setError(error.message)
-        setCheckingSession(false)
+        setInitialLoading(false)
         return
       }
 
@@ -41,7 +77,7 @@ export default function Home() {
         await loadProfile(currentSession.user.id)
       }
 
-      setCheckingSession(false)
+      setInitialLoading(false)
     }
 
     loadSession()
@@ -66,26 +102,12 @@ export default function Home() {
     }
   }, [])
 
-  async function loadProfile(userId: string) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, email, nome, cpf')
-      .eq('id', userId)
-      .single()
-
-    if (error) {
-      setError(error.message)
-      return
-    }
-
-    setProfile(data)
-  }
-
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setLoading(true)
-    setMessage('')
     setError('')
+    setMessage('')
+    if (sendingLogin) return
+    setSendingLogin(true)
 
     const redirectTo =
       typeof window !== 'undefined' ? window.location.origin : undefined
@@ -99,46 +121,107 @@ export default function Home() {
 
     if (error) {
       setError(error.message)
-      setLoading(false)
+      setSendingLogin(false)
       return
     }
 
     setMessage('Link de acesso enviado para seu email.')
-    setLoading(false)
+    setSendingLogin(false)
   }
 
   async function handleLogout() {
-    setLoading(true)
     setError('')
     setMessage('')
+    if (loggingOut) return
+    setLoggingOut(true)
 
     const { error } = await supabase.auth.signOut()
 
     if (error) {
       setError(error.message)
-      setLoading(false)
+      setLoggingOut(false)
       return
     }
 
     setProfile(null)
     setSession(null)
-    setLoading(false)
+    setNome('')
+    setCpf('')
+    setTelefone('')
+    setCidade('')
+    setLoggingOut(false)
   }
 
-  if (checkingSession) {
+  const isProfileComplete =
+    !!profile?.nome?.trim() &&
+    !!profile?.cpf?.trim() &&
+    !!profile?.telefone?.trim() &&
+    !!profile?.cidade?.trim()
+
+  const authState = !session
+    ? 'deslogado'
+    : isProfileComplete
+      ? 'logado_completo'
+      : 'logado_incompleto'
+
+  async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setMessage('')
+    if (!session?.user?.id || savingProfile) return
+
+    if (!cpf.trim()) {
+      setError('CPF é obrigatório.')
+      return
+    }
+
+    setSavingProfile(true)
+
+    const updates = {
+      nome: nome.trim() || null,
+      cpf: cpf.replace(/\D/g, ''),
+      telefone: telefone.trim() || null,
+      cidade: cidade.trim() || null,
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', session.user.id)
+
+    if (error) {
+      setError(error.message)
+      setSavingProfile(false)
+      return
+    }
+
+    setProfile((current) =>
+      current
+        ? { ...current, ...updates }
+        : {
+            id: session.user.id,
+            email: session.user.email ?? null,
+            ...updates,
+          }
+    )
+    setMessage('Perfil atualizado com sucesso.')
+    setSavingProfile(false)
+  }
+
+  if (initialLoading) {
     return (
       <main style={{ padding: 24 }}>
         <h1>Plataforma Giro</h1>
-        <p>Verificando sessão...</p>
+        <p>Carregando...</p>
       </main>
     )
   }
 
-  if (session) {
+  if (authState === 'logado_completo' && session) {
     return (
       <main style={{ padding: 24, maxWidth: 520 }}>
         <h1>Plataforma Giro</h1>
-        <p>Usuário autenticado com sucesso.</p>
+        <p>Usuário autenticado com perfil completo.</p>
 
         <div style={{ marginTop: 16, display: 'grid', gap: 8 }}>
           <div>
@@ -151,6 +234,12 @@ export default function Home() {
             <strong>CPF:</strong> {profile?.cpf ?? '-'}
           </div>
           <div>
+            <strong>Telefone:</strong> {profile?.telefone ?? '-'}
+          </div>
+          <div>
+            <strong>Cidade:</strong> {profile?.cidade ?? '-'}
+          </div>
+          <div>
             <strong>User ID:</strong> {session.user.id}
           </div>
         </div>
@@ -158,7 +247,7 @@ export default function Home() {
         <button
           type="button"
           onClick={handleLogout}
-          disabled={loading}
+          disabled={loggingOut}
           style={{
             marginTop: 24,
             padding: 12,
@@ -166,8 +255,81 @@ export default function Home() {
             cursor: 'pointer',
           }}
         >
-          {loading ? 'Saindo...' : 'Sair'}
+          {loggingOut ? 'Saindo...' : 'Sair'}
         </button>
+
+        {error ? (
+          <p style={{ marginTop: 16, color: 'red' }}>{error}</p>
+        ) : null}
+      </main>
+    )
+  }
+
+  if (authState === 'logado_incompleto' && session) {
+    return (
+      <main style={{ padding: 24, maxWidth: 420 }}>
+        <h1 style={{ marginBottom: 8 }}>Plataforma Giro</h1>
+        <p style={{ marginBottom: 24 }}>
+          Complete seu perfil para continuar.
+        </p>
+
+        <form onSubmit={handleProfileSubmit} style={{ display: 'grid', gap: 12 }}>
+          <input
+            type="text"
+            placeholder="Nome"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            style={{ padding: 12, fontSize: 16 }}
+          />
+          <input
+            type="text"
+            placeholder="CPF *"
+            value={cpf}
+            onChange={(e) => setCpf(e.target.value)}
+            required
+            style={{ padding: 12, fontSize: 16 }}
+          />
+          <input
+            type="text"
+            placeholder="Telefone"
+            value={telefone}
+            onChange={(e) => setTelefone(e.target.value)}
+            style={{ padding: 12, fontSize: 16 }}
+          />
+          <input
+            type="text"
+            placeholder="Cidade"
+            value={cidade}
+            onChange={(e) => setCidade(e.target.value)}
+            style={{ padding: 12, fontSize: 16 }}
+          />
+
+          <button
+            type="submit"
+            disabled={savingProfile}
+            style={{ padding: 12, fontSize: 16, cursor: 'pointer' }}
+          >
+            {savingProfile ? 'Salvando...' : 'Salvar perfil'}
+          </button>
+        </form>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          style={{
+            marginTop: 12,
+            padding: 12,
+            fontSize: 16,
+            cursor: 'pointer',
+          }}
+        >
+          {loggingOut ? 'Saindo...' : 'Sair'}
+        </button>
+
+        {message ? (
+          <p style={{ marginTop: 16, color: 'green' }}>{message}</p>
+        ) : null}
 
         {error ? (
           <p style={{ marginTop: 16, color: 'red' }}>{error}</p>
@@ -195,10 +357,10 @@ export default function Home() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={sendingLogin}
           style={{ padding: 12, fontSize: 16, cursor: 'pointer' }}
         >
-          {loading ? 'Enviando...' : 'Receber link de acesso'}
+          {sendingLogin ? 'Enviando...' : 'Receber link de acesso'}
         </button>
       </form>
 
