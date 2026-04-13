@@ -1,65 +1,214 @@
-import Image from "next/image";
+'use client'
+
+import { FormEvent, useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
+import type { Session } from '@supabase/supabase-js'
+
+type Profile = {
+  id: string
+  email: string | null
+  nome: string | null
+  cpf: string | null
+}
 
 export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+  const [email, setEmail] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const [session, setSession] = useState<Session | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [checkingSession, setCheckingSession] = useState(true)
+
+  useEffect(() => {
+    let mounted = true
+
+    async function loadSession() {
+      const { data, error } = await supabase.auth.getSession()
+
+      if (!mounted) return
+
+      if (error) {
+        setError(error.message)
+        setCheckingSession(false)
+        return
+      }
+
+      const currentSession = data.session ?? null
+      setSession(currentSession)
+
+      if (currentSession?.user?.id) {
+        await loadProfile(currentSession.user.id)
+      }
+
+      setCheckingSession(false)
+    }
+
+    loadSession()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      if (!mounted) return
+
+      setSession(newSession)
+
+      if (newSession?.user?.id) {
+        await loadProfile(newSession.user.id)
+      } else {
+        setProfile(null)
+      }
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  async function loadProfile(userId: string) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, email, nome, cpf')
+      .eq('id', userId)
+      .single()
+
+    if (error) {
+      setError(error.message)
+      return
+    }
+
+    setProfile(data)
+  }
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setLoading(true)
+    setMessage('')
+    setError('')
+
+    const redirectTo =
+      typeof window !== 'undefined' ? window.location.origin : undefined
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: redirectTo,
+      },
+    })
+
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+      return
+    }
+
+    setMessage('Link de acesso enviado para seu email.')
+    setLoading(false)
+  }
+
+  async function handleLogout() {
+    setLoading(true)
+    setError('')
+    setMessage('')
+
+    const { error } = await supabase.auth.signOut()
+
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+      return
+    }
+
+    setProfile(null)
+    setSession(null)
+    setLoading(false)
+  }
+
+  if (checkingSession) {
+    return (
+      <main style={{ padding: 24 }}>
+        <h1>Plataforma Giro</h1>
+        <p>Verificando sessão...</p>
       </main>
-    </div>
-  );
+    )
+  }
+
+  if (session) {
+    return (
+      <main style={{ padding: 24, maxWidth: 520 }}>
+        <h1>Plataforma Giro</h1>
+        <p>Usuário autenticado com sucesso.</p>
+
+        <div style={{ marginTop: 16, display: 'grid', gap: 8 }}>
+          <div>
+            <strong>Email:</strong> {profile?.email ?? session.user.email ?? '-'}
+          </div>
+          <div>
+            <strong>Nome:</strong> {profile?.nome ?? '-'}
+          </div>
+          <div>
+            <strong>CPF:</strong> {profile?.cpf ?? '-'}
+          </div>
+          <div>
+            <strong>User ID:</strong> {session.user.id}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={loading}
+          style={{
+            marginTop: 24,
+            padding: 12,
+            fontSize: 16,
+            cursor: 'pointer',
+          }}
+        >
+          {loading ? 'Saindo...' : 'Sair'}
+        </button>
+
+        {error ? (
+          <p style={{ marginTop: 16, color: 'red' }}>{error}</p>
+        ) : null}
+      </main>
+    )
+  }
+
+  return (
+    <main style={{ padding: 24, maxWidth: 420 }}>
+      <h1 style={{ marginBottom: 8 }}>Plataforma Giro</h1>
+      <p style={{ marginBottom: 24 }}>
+        Entre com seu email para acessar o sistema.
+      </p>
+
+      <form onSubmit={handleLogin} style={{ display: 'grid', gap: 12 }}>
+        <input
+          type="email"
+          placeholder="Seu email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          style={{ padding: 12, fontSize: 16 }}
+        />
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{ padding: 12, fontSize: 16, cursor: 'pointer' }}
+        >
+          {loading ? 'Enviando...' : 'Receber link de acesso'}
+        </button>
+      </form>
+
+      {message ? (
+        <p style={{ marginTop: 16, color: 'green' }}>{message}</p>
+      ) : null}
+
+      {error ? (
+        <p style={{ marginTop: 16, color: 'red' }}>{error}</p>
+      ) : null}
+    </main>
+  )
 }
