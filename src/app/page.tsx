@@ -217,7 +217,7 @@ export default function Home() {
     )
   }
 
-  if (authState === 'logado_completo') {
+  if (authState === 'logado_completo' && session) {
     return (
       <main style={{ padding: 24, maxWidth: 520 }}>
         <h1>Plataforma Giro</h1>
