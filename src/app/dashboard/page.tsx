@@ -112,21 +112,63 @@ export default function DashboardPage() {
     )
   }
 
-  return (
-    <main style={{ padding: 24, maxWidth: 420 }}>
-      <h1>Área autenticada</h1>
-      <p style={{ marginTop: 12 }}>
-        <strong>Email:</strong> {session.user.email ?? '-'}
-      </p>
+  const modules = ['Perfil', 'Eventos', 'Trilhas', 'Desafios', 'Loja']
 
-      <button
-        type="button"
-        onClick={handleLogout}
-        disabled={loggingOut}
-        style={{ marginTop: 16, padding: 12, fontSize: 16, cursor: 'pointer' }}
+  return (
+    <main style={{ padding: 24, maxWidth: 640 }}>
+      <h1>Área autenticada</h1>
+
+      <section
+        style={{
+          marginTop: 16,
+          padding: 16,
+          border: '1px solid #ddd',
+          borderRadius: 8,
+        }}
       >
-        {loggingOut ? 'Saindo...' : 'Sair'}
-      </button>
+        <h2 style={{ margin: 0, fontSize: 18 }}>Usuário</h2>
+        <p style={{ marginTop: 12 }}>
+          <strong>Email:</strong> {session.user.email ?? '-'}
+        </p>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          style={{ marginTop: 16, padding: 12, fontSize: 16, cursor: 'pointer' }}
+        >
+          {loggingOut ? 'Saindo...' : 'Sair'}
+        </button>
+      </section>
+
+      <section
+        style={{
+          marginTop: 16,
+          padding: 16,
+          border: '1px solid #ddd',
+          borderRadius: 8,
+        }}
+      >
+        <h2 style={{ margin: 0, fontSize: 18 }}>Módulos</h2>
+        <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {modules.map((module) => (
+            <a
+              key={module}
+              href="#"
+              style={{
+                display: 'inline-block',
+                padding: '10px 12px',
+                border: '1px solid #ddd',
+                borderRadius: 6,
+                textDecoration: 'none',
+                color: 'inherit',
+              }}
+            >
+              {module}
+            </a>
+          ))}
+        </div>
+      </section>
     </main>
   )
 }
