@@ -105,10 +105,10 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    if (session) {
+    if (session && isProfileComplete) {
       router.push('/dashboard')
     }
-  }, [router, session])
+  }, [isProfileComplete, router, session])
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -192,10 +192,18 @@ export default function Home() {
       cidade: cidade.trim() || null,
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
-      .update(updates)
-      .eq('id', session.user.id)
+      .upsert(
+        {
+          id: session.user.id,
+          email: session.user.email ?? null,
+          ...updates,
+        },
+        { onConflict: 'id' }
+      )
+      .select('id, email, nome, cpf, telefone, cidade')
+      .single()
 
     if (error) {
       setError(error.message)
@@ -203,17 +211,16 @@ export default function Home() {
       return
     }
 
-    setProfile((current) =>
-      current
-        ? { ...current, ...updates }
-        : {
-            id: session.user.id,
-            email: session.user.email ?? null,
-            ...updates,
-          }
-    )
+    if (data) {
+      setProfile(data)
+      setNome(data.nome ?? '')
+      setCpf(data.cpf ?? '')
+      setTelefone(data.telefone ?? '')
+      setCidade(data.cidade ?? '')
+    }
     setMessage('Perfil atualizado com sucesso.')
     setSavingProfile(false)
+    router.push('/dashboard')
   }
 
   if (initialLoading) {
