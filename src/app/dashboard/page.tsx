@@ -11,6 +11,23 @@ export default function DashboardPage() {
   const [loggingOut, setLoggingOut] = useState(false)
   const [session, setSession] = useState<Session | null>(null)
 
+  async function hasCompleteProfile(userId: string) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('nome, cpf, telefone, cidade')
+      .eq('id', userId)
+      .single()
+
+    if (error || !data) return false
+
+    return (
+      !!data.nome?.trim() &&
+      !!data.cpf?.trim() &&
+      !!data.telefone?.trim() &&
+      !!data.cidade?.trim()
+    )
+  }
+
   useEffect(() => {
     let mounted = true
 
@@ -24,6 +41,18 @@ export default function DashboardPage() {
 
       if (!currentSession) {
         router.push('/')
+        setInitialLoading(false)
+        return
+      }
+
+      const profileComplete = await hasCompleteProfile(currentSession.user.id)
+
+      if (!mounted) return
+
+      if (!profileComplete) {
+        router.push('/')
+        setInitialLoading(false)
+        return
       }
 
       setInitialLoading(false)
@@ -33,12 +62,21 @@ export default function DashboardPage() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       if (!mounted) return
 
       setSession(newSession)
 
       if (!newSession) {
+        router.push('/')
+        return
+      }
+
+      const profileComplete = await hasCompleteProfile(newSession.user.id)
+
+      if (!mounted) return
+
+      if (!profileComplete) {
         router.push('/')
       }
     })
