@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 
@@ -16,6 +16,7 @@ type Profile = {
 
 export default function Home() {
   const router = useRouter()
+  const pathname = usePathname()
   const [email, setEmail] = useState('')
   const [initialLoading, setInitialLoading] = useState(true)
   const [loggingOut, setLoggingOut] = useState(false)
@@ -107,14 +108,24 @@ export default function Home() {
   useEffect(() => {
     if (initialLoading) return
 
-    if (session) {
+    if (!session && pathname === '/perfil') {
+      router.push('/')
+      return
+    }
+
+    if (session && pathname === '/') {
       if (isProfileComplete) {
         router.push('/dashboard')
       } else {
         router.push('/perfil')
       }
+      return
     }
-  }, [initialLoading, isProfileComplete, router, session])
+
+    if (session && pathname === '/perfil' && isProfileComplete) {
+      router.push('/dashboard')
+    }
+  }, [initialLoading, isProfileComplete, pathname, router, session])
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
