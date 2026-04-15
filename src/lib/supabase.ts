@@ -11,4 +11,10 @@ if (!supabasePublishableKey) {
   throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not defined')
 }
 
-export const supabase = createClient(supabaseUrl, supabasePublishableKey)
+export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+})

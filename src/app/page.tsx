@@ -105,10 +105,12 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    if (session && isProfileComplete) {
+    if (initialLoading) return
+
+    if (session) {
       router.push('/dashboard')
     }
-  }, [isProfileComplete, router, session])
+  }, [initialLoading, router, session])
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
