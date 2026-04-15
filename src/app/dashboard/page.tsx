@@ -50,7 +50,7 @@ export default function DashboardPage() {
       if (!mounted) return
 
       if (!profileComplete) {
-        router.push('/')
+        router.push('/perfil')
         setInitialLoading(false)
         return
       }
@@ -77,7 +77,7 @@ export default function DashboardPage() {
       if (!mounted) return
 
       if (!profileComplete) {
-        router.push('/')
+        router.push('/perfil')
       }
     })
 

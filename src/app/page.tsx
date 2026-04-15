@@ -108,9 +108,13 @@ export default function Home() {
     if (initialLoading) return
 
     if (session) {
-      router.push('/dashboard')
+      if (isProfileComplete) {
+        router.push('/dashboard')
+      } else {
+        router.push('/perfil')
+      }
     }
-  }, [initialLoading, router, session])
+  }, [initialLoading, isProfileComplete, router, session])
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
