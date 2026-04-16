@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 
 export default function DashboardPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const [initialLoading, setInitialLoading] = useState(true)
   const [loggingOut, setLoggingOut] = useState(false)
   const [session, setSession] = useState<Session | null>(null)
@@ -40,7 +41,9 @@ export default function DashboardPage() {
       setSession(currentSession)
 
       if (!currentSession) {
-        router.push('/')
+        if (pathname !== '/') {
+          router.push('/')
+        }
         setInitialLoading(false)
         return
       }
@@ -50,7 +53,9 @@ export default function DashboardPage() {
       if (!mounted) return
 
       if (!profileComplete) {
-        router.push('/perfil')
+        if (pathname !== '/perfil') {
+          router.push('/perfil')
+        }
         setInitialLoading(false)
         return
       }
@@ -68,7 +73,9 @@ export default function DashboardPage() {
       setSession(newSession)
 
       if (!newSession) {
-        router.push('/')
+        if (pathname !== '/') {
+          router.push('/')
+        }
         return
       }
 
@@ -76,7 +83,7 @@ export default function DashboardPage() {
 
       if (!mounted) return
 
-      if (!profileComplete) {
+      if (!profileComplete && pathname !== '/perfil') {
         router.push('/perfil')
       }
     })
@@ -85,14 +92,16 @@ export default function DashboardPage() {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [router])
+  }, [pathname, router])
 
   async function handleLogout() {
     if (loggingOut) return
     setLoggingOut(true)
 
     await supabase.auth.signOut()
-    router.push('/')
+    if (pathname !== '/') {
+      router.push('/')
+    }
     setLoggingOut(false)
   }
 
