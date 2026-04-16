@@ -15,6 +15,7 @@ type Profile = {
 }
 
 export default function PerfilPage() {
+  const SUPABASE_TIMEOUT_MS = 15000
   const router = useRouter()
   const pathname = usePathname()
   const [initialLoading, setInitialLoading] = useState(true)
@@ -28,6 +29,22 @@ export default function PerfilPage() {
   const [cpf, setCpf] = useState('')
   const [telefone, setTelefone] = useState('')
   const [cidade, setCidade] = useState('')
+
+  async function withTimeout<T>(promise: Promise<T>, timeoutMessage: string) {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(timeoutMessage))
+      }, SUPABASE_TIMEOUT_MS)
+    })
+
+    try {
+      return await Promise.race([promise, timeoutPromise])
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }
 
   async function loadProfile(userId: string) {
     const { data, error: profileError } = await supabase
@@ -148,61 +165,95 @@ export default function PerfilPage() {
     }
 
     setSavingProfile(true)
+    console.log('Perfil: início do salvar')
 
-    const { data, error: upsertError } = await supabase
-      .from('profiles')
-      .upsert(
-        {
-          id: session.user.id,
-          email: session.user.email ?? null,
-          nome: nome.trim() || null,
-          cpf: cpf.replace(/\D/g, ''),
-          telefone: telefone.trim() || null,
-          cidade: cidade.trim() || null,
-        },
-        { onConflict: 'id' }
+    try {
+      const { data, error: upsertError } = await withTimeout(
+        supabase
+          .from('profiles')
+          .upsert(
+            {
+              id: session.user.id,
+              email: session.user.email ?? null,
+              nome: nome.trim() || null,
+              cpf: cpf.replace(/\D/g, ''),
+              telefone: telefone.trim() || null,
+              cidade: cidade.trim() || null,
+            },
+            { onConflict: 'id' }
+          )
+          .select('id, email, nome, cpf, telefone, cidade')
+          .single(),
+        'A atualização do perfil demorou demais. Tente novamente.'
       )
-      .select('id, email, nome, cpf, telefone, cidade')
-      .single()
 
-    if (upsertError) {
-      setError(upsertError.message)
+      if (upsertError) {
+        throw new Error(upsertError.message)
+      }
+
+      if (data) {
+        setProfile(data)
+        setNome(data.nome ?? '')
+        setCpf(data.cpf ?? '')
+        setTelefone(data.telefone ?? '')
+        setCidade(data.cidade ?? '')
+      }
+
+      setMessage('Perfil atualizado com sucesso.')
+      console.log('Perfil: salvar concluído com sucesso')
+
+      if (pathname !== '/dashboard') {
+        router.push('/dashboard')
+      }
+    } catch (submitError) {
+      console.error('Perfil: erro ao salvar', submitError)
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : 'Não foi possível salvar o perfil. Tente novamente.'
+      )
+    } finally {
       setSavingProfile(false)
-      return
-    }
-
-    if (data) {
-      setProfile(data)
-      setNome(data.nome ?? '')
-      setCpf(data.cpf ?? '')
-      setTelefone(data.telefone ?? '')
-      setCidade(data.cidade ?? '')
-    }
-
-    setMessage('Perfil atualizado com sucesso.')
-    setSavingProfile(false)
-
-    if (pathname !== '/dashboard') {
-      router.push('/dashboard')
     }
   }
 
   async function handleLogout() {
     if (loggingOut) return
+    setError('')
+    setMessage('')
     setLoggingOut(true)
+    console.log('Perfil: início do logout')
 
-    await supabase.auth.signOut()
+    try {
+      const { error: logoutError } = await withTimeout(
+        supabase.auth.signOut(),
+        'O logout demorou demais. Tente novamente.'
+      )
 
-    setProfile(null)
-    setSession(null)
-    setNome('')
-    setCpf('')
-    setTelefone('')
-    setCidade('')
-    setLoggingOut(false)
+      if (logoutError) {
+        throw new Error(logoutError.message)
+      }
 
-    if (pathname !== '/') {
-      router.push('/')
+      setProfile(null)
+      setSession(null)
+      setNome('')
+      setCpf('')
+      setTelefone('')
+      setCidade('')
+      console.log('Perfil: logout concluído com sucesso')
+
+      if (pathname !== '/') {
+        router.push('/')
+      }
+    } catch (logoutError) {
+      console.error('Perfil: erro no logout', logoutError)
+      setError(
+        logoutError instanceof Error
+          ? logoutError.message
+          : 'Não foi possível sair. Tente novamente.'
+      )
+    } finally {
+      setLoggingOut(false)
     }
   }
 
